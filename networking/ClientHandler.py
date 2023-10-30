@@ -1,13 +1,13 @@
 import socket
-from threading import Thread
+import threading
 
 """
 Handles single-client connections.
 """
-class ClientHandler():
+class ClientHandler(threading.Thread):
     clientHandler_list = []
 
-    def __init__(self) -> None:
+    def __init__(self, ) -> None:
         pass
 
     def run():

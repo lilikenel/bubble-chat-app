@@ -1,10 +1,12 @@
-from uuid import uuid4
+from uuid import uuid4, UUID
 from datetime import datetime
 
 class Message():
-    sender_id = None # UUID
-    receiver_id = None # UUID
-    timestamp = None # datetime
-
-    def __init__(self) -> None:
-        pass
+    def __init__(self, text:str, sender_id:UUID, receiver_id:UUID, timestamp:datetime) -> None:
+        self.text = text
+        self.sender_id = sender_id
+        self.receiver_id = receiver_id
+        self.timestamp = timestamp
+    
+    def __str__(self) -> str:
+        return f"{self.text} % {self.sender_id.__str__()} % {self.receiver_id.__str__()} % {self.timestamp.__str__()}"
