@@ -64,7 +64,8 @@ class HandshakeTest(unittest.TestCase):
         return host_future, joiner_future
 
     def test_matching_codes_yield_interoperable_channels(self) -> None:
-        host_future, joiner_future = self._establish_pair(b"same", b"same")
+        code = b"shared-pairing-code-abc"
+        host_future, joiner_future = self._establish_pair(code, code)
         host_channel = host_future.result(timeout=15)
         joiner_channel = joiner_future.result(timeout=15)
 
@@ -72,7 +73,9 @@ class HandshakeTest(unittest.TestCase):
         self.assertEqual(host_channel.decrypt(joiner_channel.encrypt(b"pong")), b"pong")
 
     def test_mismatched_codes_fail_key_confirmation(self) -> None:
-        host_future, joiner_future = self._establish_pair(b"code-aaaa", b"code-bbbb")
+        host_future, joiner_future = self._establish_pair(
+            b"pairing-code-alpha-111", b"pairing-code-bravo-222"
+        )
 
         with self.assertRaises(HandshakeError):
             host_future.result(timeout=15)
@@ -87,12 +90,23 @@ class HandshakeTest(unittest.TestCase):
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.addCleanup(executor.shutdown)
 
-        host_future = executor.submit(SecureChannel.establish, host_peer, HOST, b"code")
+        host_future = executor.submit(
+            SecureChannel.establish, host_peer, HOST, b"a-long-enough-pairing-code"
+        )
         joiner_peer.recv_bytes()  # consume the host's real public key
         joiner_peer.send_bytes(b"too-short")  # reply with a malformed one
 
         with self.assertRaises(HandshakeError):
             host_future.result(timeout=15)
+
+    def test_rejects_too_short_pairing_code(self) -> None:
+        host_sock, joiner_sock = socket.socketpair()
+        self.addCleanup(host_sock.close)
+        self.addCleanup(joiner_sock.close)
+
+        # Guard runs before any I/O, so this raises immediately (no live peer needed).
+        with self.assertRaises(ValueError):
+            SecureChannel.establish(Peer(host_sock), HOST, b"short")
 
 
 if __name__ == "__main__":

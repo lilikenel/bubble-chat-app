@@ -7,6 +7,7 @@ import struct
 import unittest
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest import mock
 from uuid import uuid4
 
 from nacl.utils import random as random_bytes
@@ -81,6 +82,40 @@ class ChatSessionTest(unittest.TestCase):
 
         self.assertEqual(first.text, "once")
         self.assertIsNone(second)
+
+    def test_receive_message_rejects_short_payload(self) -> None:
+        ctx = self._pair()
+        # Authenticated but malformed: fewer than 8 bytes (no room for the seq).
+        ctx.host_peer.send_bytes(ctx.host_channel.encrypt(b"\x00\x00"))
+
+        with self.assertRaises(ValueError):
+            ctx.joiner.receive_message()
+
+    def test_close_wipes_channel_and_pops_bubble(self) -> None:
+        ctx = self._pair()
+        ctx.host.send_text("hi")
+
+        ctx.host.close()
+
+        self.assertEqual(ctx.host_bubble.history(), [])
+        with self.assertRaises(RuntimeError):  # channel was wiped
+            ctx.host_channel.encrypt(b"x")
+
+    def test_run_sends_typed_lines_then_quits(self) -> None:
+        ctx = self._pair()
+
+        with mock.patch("builtins.input", side_effect=["hello", "/quit"]):
+            ctx.host.run()
+
+        self.assertEqual([m.text for m in ctx.host_bubble.history()], ["hello"])
+
+    def test_run_ignores_blank_lines(self) -> None:
+        ctx = self._pair()
+
+        with mock.patch("builtins.input", side_effect=["", "   ", "real", "/quit"]):
+            ctx.host.run()
+
+        self.assertEqual([m.text for m in ctx.host_bubble.history()], ["real"])
 
 
 if __name__ == "__main__":

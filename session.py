@@ -63,6 +63,8 @@ class ChatSession:
     def receive_message(self) -> Message | None:
         """Receive one message; returns None for a replayed or reordered frame."""
         payload = self._channel.decrypt(self._peer.recv_bytes())
+        if len(payload) < _SEQUENCE.size:
+            raise ValueError("message payload too short")  # fail closed
         sequence = _SEQUENCE.unpack(payload[: _SEQUENCE.size])[0]
         if sequence <= self._last_received_sequence:
             return None  # replay or reorder -> drop
@@ -78,11 +80,18 @@ class ChatSession:
         try:
             while not self._stop.is_set():
                 line = input()
-                if line.strip() == QUIT_COMMAND:
+                if self._stop.is_set():
+                    break  # the peer left while we were waiting for input
+                stripped = line.strip()
+                if stripped == QUIT_COMMAND:
                     break
+                if not stripped:
+                    continue  # ignore blank lines
                 self.send_text(line)
         except (EOFError, KeyboardInterrupt):
             pass
+        except OSError:
+            pass  # peer went away mid-send; shut down cleanly
         finally:
             self._stop.set()
 
@@ -91,12 +100,14 @@ class ChatSession:
             try:
                 message = self.receive_message()
             except PeerDisconnected:
-                self._note("peer disconnected")
+                self._note("peer disconnected — press enter to exit")
                 break
             except (CryptoError, FramingError, ValueError, OSError, RuntimeError):
-                self._note("dropped a tampered or malformed message")
+                self._note("dropped a tampered message — press enter to exit")
                 break  # fail closed
             if message is not None:
+                # bubble.add here and in send_text() run on different threads;
+                # CPython's GIL makes the underlying list.append atomic.
                 print(sanitize_for_terminal(str(message)))
         self._stop.set()
 

@@ -46,6 +46,11 @@ class Peer:
 
     def __init__(self, sock: socket.socket) -> None:
         self._sock = sock
+        try:
+            # Send each frame immediately instead of buffering (interactive chat).
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except OSError:
+            pass  # not a TCP socket (e.g. an AF_UNIX socketpair in tests)
 
     @classmethod
     def join(cls, address: tuple[str, int]) -> Peer:

@@ -49,7 +49,10 @@ def _connect(mode: str, address: tuple[str, int]) -> tuple[Peer, str, bytes]:
 def main(argv: list[str]) -> None:
     mode, address = parse_args(argv)
     name = input("Display name: ").strip() or "anon"
-    peer, role, code = _connect(mode, address)
+    try:
+        peer, role, code = _connect(mode, address)
+    except OSError as error:
+        raise SystemExit(f"could not connect: {error}")
 
     bubble = Bubble(User(name))
     session: ChatSession | None = None
@@ -61,7 +64,7 @@ def main(argv: list[str]) -> None:
     except HandshakeError:
         print("\nHandshake failed — wrong pairing code or tampering. Aborting.")
     except (PeerDisconnected, FramingError, OSError) as error:
-        print(f"\nConnection problem during handshake: {error}")
+        print(f"\nConnection error: {error}")
     finally:
         if session is not None:
             session.close()

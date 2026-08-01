@@ -22,6 +22,7 @@ JOINER = "JOINER"
 _APP_LABEL = b"bubble-chat-v1"
 _KEY_BYTES = 32
 _PUBLIC_KEY_BYTES = 32
+_MIN_CODE_BYTES = 16  # defense-in-depth floor (make_pairing_code yields ~32 chars)
 
 
 class HandshakeError(Exception):
@@ -52,6 +53,8 @@ class SecureChannel:
         """
         if role not in (HOST, JOINER):
             raise ValueError(f"role must be HOST or JOINER, got {role!r}")
+        if len(pairing_code) < _MIN_CODE_BYTES:
+            raise ValueError(f"pairing code must be at least {_MIN_CODE_BYTES} bytes")
 
         my_private_key = PrivateKey.generate()
         my_public_key = my_private_key.public_key.encode()
