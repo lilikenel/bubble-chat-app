@@ -18,6 +18,8 @@ from security.pairing import make_pairing_code
 from security.secure_channel import HOST, JOINER, HandshakeError, SecureChannel
 from session import ChatSession
 
+__version__ = "1.0.0"
+
 
 def parse_args(argv: list[str]) -> tuple[str, tuple[str, int]]:
     """Parse ['host'|'join', 'HOST:PORT'] into (mode, (host, port))."""
@@ -48,6 +50,7 @@ def _connect(mode: str, address: tuple[str, int]) -> tuple[Peer, str, bytes]:
 
 def main(argv: list[str]) -> None:
     mode, address = parse_args(argv)
+    print(f"Bubble v{__version__} — the chat app that forgets\n")
     name = input("Display name: ").strip() or "anon"
     try:
         peer, role, code = _connect(mode, address)
