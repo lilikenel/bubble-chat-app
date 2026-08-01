@@ -4,6 +4,28 @@ All notable changes to Bubble are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-08-01
+
+**The "pretty" release.** A friendly terminal UI - no arguments required.
+
+### Added
+
+- **Interactive launcher.** Run `python main.py` with no arguments for a
+  cleared screen, a BUBBLE banner, and keyboard-driven menus.
+- **Host: Local vs LAN.** Choose loopback or your auto-detected LAN IPv4.
+- **Live waiting screen** with an animated spinner and an `mm:ss` countdown to
+  the 2-minute timeout.
+- **Colourful chat.** Each display name gets its own colour (assigned locally
+  per session); your own messages now echo with your name and timestamp.
+
+### Changed
+
+- `rich` and `questionary` are now dependencies (presentation only; the crypto
+  and networking layers stay dependency-free).
+- The `python main.py host|join HOST:PORT` form still works as a shortcut.
+
+[1.1.0]: https://github.com/lilikenel/bubble-chat-app/releases/tag/v1.1.0
+
 ## [1.0.1] - 2026-08-01
 
 **Bug-fix release.** Correct timestamps and cleaner start-up behaviour; no

@@ -1,4 +1,4 @@
-"""The in-memory chat session between two users — the "bubble" that forgets.
+"""The in-memory chat session between two users - the "bubble" that forgets.
 
 Holds all ephemeral state (the messages and the secure channel) in RAM only.
 ``pop()`` is the wipe: it clears the conversation and zeroes the channel keys,

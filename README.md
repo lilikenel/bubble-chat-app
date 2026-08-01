@@ -6,7 +6,7 @@ message and key vanishes. Nothing is ever written to disk.
 
 This is an app I wrote to teach myself more about Diffie-Hellman key exchange. Don't use it to replace Signal.
 
-`v1.0.1` · Python 3.10+ · terminal · GPL-3.0
+`v1.1.0` · Python 3.10+ · terminal · GPL-3.0
 
 ---
 
@@ -33,7 +33,9 @@ See [Security model](#security-model) for the details.
 ## Requirements
 
 - **Python 3.10 or newer**
-- **[PyNaCl](https://pypi.org/project/PyNaCl/)** (libsodium bindings) - the only dependency
+- **[PyNaCl](https://pypi.org/project/PyNaCl/)** (libsodium bindings) - the crypto
+- **[rich](https://pypi.org/project/rich/)** and
+  **[questionary](https://pypi.org/project/questionary/)** - the terminal UI
 
 ## Install
 
@@ -50,56 +52,44 @@ pip install -r requirements.txt
 You need **two terminals** (on one machine to try it out, or two machines on the
 same network). One side hosts, the other joins.
 
-### 1. Start a Bubble (host)
+### Start the app
+
+```bash
+python main.py
+```
+
+The screen clears and shows the BUBBLE banner and a keyboard-driven menu (use
+`↑`/`↓` and `enter`):
+
+1. **Host a bubble** or **Join a bubble**.
+2. **Host** then picks **Local only** (`127.0.0.1`) or **LAN** (your
+   auto-detected IPv4). Bubble prints a **pairing code** and shows a live
+   countdown while it waits for a peer (it gives up after 2 minutes).
+3. **Join** asks for your display name, the host's address, and the pairing code
+   (entered hidden).
+
+**Read the pairing code to your friend over a separate, trusted channel** (phone,
+in person). Don't send it over an untrusted network - it's what keeps out
+impostors.
+
+Once the codes match, both sides see `✓ secure channel established` and can chat.
+Messages appear as `[14:30] Alice  hi`, each name in its own colour, timestamps
+in **your** local time - including your own messages.
+
+Type **`/quit`** (or press `Ctrl-C`) to end the Bubble: the connection closes and
+the conversation plus all keys are wiped. If your peer leaves first, you'll be
+told to press enter to exit.
+
+### Shortcut form (skip the menu)
 
 ```bash
 python main.py host 127.0.0.1:5050
+python main.py join 192.168.1.20:5050
 ```
 
-Enter a display name. Bubble prints a **pairing code**:
-
-```
-Share this pairing code with your peer (it is never stored):
-
-    at22-okxl-ehi6-kcdh-ky4v-jfsj-pe
-
-Waiting for a peer to join on 127.0.0.1:5050 ...
-```
-
-**Read that code to your friend over a separate, trusted channel** (phone, in
-person). Don't send it over an untrusted network - it's what keeps out impostors.
-
-### 2. Join a Bubble
-
-In the other terminal:
-
-```bash
-python main.py join 127.0.0.1:5050
-```
-
-Enter a display name, then type the pairing code at the hidden prompt (it won't
-echo). If the codes match, both sides see:
-
-```
-Secure channel established. Type messages; /quit to leave.
-```
-
-### 3. Chat
-
-Type a message and press enter. Incoming messages appear as
-`[14:30] Alice: hi`.
-
-### 4. End the Bubble
-
-Type **`/quit`** (or press `Ctrl-C`). The connection closes and the conversation
-plus all keys are wiped. If your peer leaves first, you'll be told to press enter
-to exit.
-
-### Connecting across machines
-
-Replace `127.0.0.1` with the host's LAN IP (e.g. `192.168.1.20:5050`) and make
-sure that port is reachable. Over the internet the host must be reachable
-directly (port-forwarding or a VPN); Bubble does not use a relay.
+Use the host's LAN IP to connect across machines, and make sure that port is
+reachable. Over the internet the host must be reachable directly (port-forwarding
+or a VPN); Bubble does not use a relay.
 
 ---
 
@@ -129,7 +119,8 @@ primitives. The handshake was checked with an automated security review.
 
 ## Development
 
-Run the test suite (45 tests - transport, handshake, domain, session, end-to-end):
+Run the test suite (59 tests - transport, handshake, domain, session, addressing,
+UI palette, end-to-end):
 
 ```bash
 python -m unittest discover -s tests -p "*_test.py"
@@ -140,8 +131,7 @@ and the design in [`.agents/plans/secure-chat-design.md`](.agents/plans/secure-c
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). **v1.0.1** is the latest release; **v1.0.0**
-was the first official release.
+See [CHANGELOG.md](CHANGELOG.md). **v1.1.0** is the latest release.
 
 ## License
 

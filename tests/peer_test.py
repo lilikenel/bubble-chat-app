@@ -21,6 +21,37 @@ class ListenerTest(unittest.TestCase):
         self.assertEqual(host, LOOPBACK)
         self.assertNotEqual(port, 0)
 
+    def test_on_wait_is_called_with_decreasing_remaining(self) -> None:
+        listener = Listener((LOOPBACK, 0))
+        self.addCleanup(listener.close)
+        seen: list[float] = []
+
+        with self.assertRaises(TimeoutError):
+            listener.accept(
+                timeout=Listener._ACCEPT_POLL_SECONDS * 2,
+                on_wait=seen.append,
+            )
+
+        self.assertTrue(seen)
+        self.assertEqual(seen, sorted(seen, reverse=True))
+
+    def test_on_wait_still_accepts_a_peer(self) -> None:
+        listener = Listener((LOOPBACK, 0))
+        self.addCleanup(listener.close)
+        seen: list[float] = []
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self.addCleanup(executor.shutdown)
+        accept_future = executor.submit(listener.accept, None, seen.append)
+
+        client = Peer.join(listener.address)
+        self.addCleanup(client.close)
+        server = accept_future.result(timeout=5)
+        self.addCleanup(server.close)
+
+        client.send_bytes(b"hi")
+        self.assertEqual(server.recv_bytes(), b"hi")
+        self.assertTrue(seen)  # infinite remaining, but callback fired
+
     def test_accept_polls_then_accepts_a_late_peer(self) -> None:
         # A peer that connects after several poll intervals must still be
         # accepted; the polling loop must not give up or lose the connection.

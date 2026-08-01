@@ -1,7 +1,7 @@
-# Bubble — Secure, Ephemeral, Peer-to-Peer Terminal Chat
+# Bubble - Secure, Ephemeral, Peer-to-Peer Terminal Chat
 
 > Design + implementation plan. Approved 2026-08-01. Source of truth for the security
-> architecture — do not re-litigate these decisions without cause (see "Decisions locked").
+> architecture - do not re-litigate these decisions without cause (see "Decisions locked").
 >
 > Naming follows [.agents/coding-standards.md](../coding-standards.md) (PEP 8): module files are
 > `snake_case`, classes are `PascalCase`.
@@ -13,15 +13,15 @@ domain models (`Bubble`, `User`) and all of `security/Security.py` were empty st
 networking had real defects (broken imports, mis-wired threads, single-client `accept`,
 constructors that do I/O). The product goal is a small chat with three properties:
 
-1. **Two users can communicate** — 1:1 chat.
-2. **As secure as possible** — the primary non-functional goal.
-3. **Everything in-memory** — the conversation and all secrets vanish when the chat closes.
+1. **Two users can communicate** - 1:1 chat.
+2. **As secure as possible** - the primary non-functional goal.
+3. **Everything in-memory** - the conversation and all secrets vanish when the chat closes.
    In-terminal for now.
 
 Discovery settled the security architecture. The most important outcome: choosing
 **peer-to-peer** *structurally removes* the "untrusted relay/server" threat (there is no third
 party), and choosing an **app-generated high-entropy pairing code** lets us build the whole
-thing on **PyNaCl alone** — no unmaintained crypto dependencies (`spake2`/`hkdf` avoided).
+thing on **PyNaCl alone** - no unmaintained crypto dependencies (`spake2`/`hkdf` avoided).
 
 ## Decisions locked during discovery
 
@@ -37,14 +37,14 @@ thing on **PyNaCl alone** — no unmaintained crypto dependencies (`spake2`/`hkd
 
 Four layers, each independently testable:
 
-- **Transport** (`networking/`) — TCP sockets + length-prefixed framing.
-- **Secure channel** (`security/`) — the *only* place raw keys live; handshake + encrypt/decrypt/wipe.
-- **Domain** (`dom/`) — `Message`, `User`, `Bubble` (owns all ephemeral state).
-- **Terminal UI / entry** (`main.py`) — arg parsing, code display/input, wiring, guaranteed teardown.
+- **Transport** (`networking/`) - TCP sockets + length-prefixed framing.
+- **Secure channel** (`security/`) - the *only* place raw keys live; handshake + encrypt/decrypt/wipe.
+- **Domain** (`dom/`) - `Message`, `User`, `Bubble` (owns all ephemeral state).
+- **Terminal UI / entry** (`main.py`) - arg parsing, code display/input, wiring, guaranteed teardown.
 
 P2P means one side opens a `Listener` (bind + accept exactly one connection) while the other calls
 `Peer.join`; both then hold a symmetric `Peer`. The `HOST` / `JOINER` labels only seed the
-handshake — after `SECURE` the two peers are identical.
+handshake - after `SECURE` the two peers are identical.
 
 ```
 HOST                                             JOINER
@@ -62,19 +62,19 @@ HOST                                             JOINER
 
 ## Libraries / dependencies
 
-- **`PyNaCl` (pin `>=1.6.2`)** — the entire crypto core:
-  - `nacl.public` — ephemeral X25519 keypairs; `nacl.bindings.crypto_box_beforenm` for the raw ECDH shared secret.
-  - `nacl.pwhash.argon2id.kdf` — slow, memory-hard KDF over the pairing code.
-  - `nacl.hash.blake2b` — keyed hashing for key derivation + confirmation tags.
-  - `nacl.secret.SecretBox` — per-message AEAD (XSalsa20-Poly1305, auto random nonce).
-  - `nacl.utils.random`, `nacl.bindings.sodium_memcmp` — CSPRNG, constant-time compare.
-- **stdlib** — `socket`, `threading`, `struct` (framing), `secrets` (code generation),
+- **`PyNaCl` (pin `>=1.6.2`)** - the entire crypto core:
+  - `nacl.public` - ephemeral X25519 keypairs; `nacl.bindings.crypto_box_beforenm` for the raw ECDH shared secret.
+  - `nacl.pwhash.argon2id.kdf` - slow, memory-hard KDF over the pairing code.
+  - `nacl.hash.blake2b` - keyed hashing for key derivation + confirmation tags.
+  - `nacl.secret.SecretBox` - per-message AEAD (XSalsa20-Poly1305, auto random nonce).
+  - `nacl.utils.random`, `nacl.bindings.sodium_memcmp` - CSPRNG, constant-time compare.
+- **stdlib** - `socket`, `threading`, `struct` (framing), `secrets` (code generation),
   `getpass` (no-echo code entry), `uuid`, `datetime`, `enum`.
 - **Remove** `cryptography` from `requirements.txt` (unused under this design).
-- **Do NOT add** `spake2` — verified unmaintained (~6 yrs) with a decade-stale `hkdf` dep; the
+- **Do NOT add** `spake2` - verified unmaintained (~6 yrs) with a decade-stale `hkdf` dep; the
   high-entropy code makes a true PAKE unnecessary.
 
-## The handshake (security-critical — run `/security-review` before trusting it)
+## The handshake (security-critical - run `/security-review` before trusting it)
 
 Both peers already share `code` (bytes, from the same displayed string). `role ∈ {HOST, JOINER}`.
 
@@ -112,29 +112,29 @@ New module files use `snake_case` (PEP 8; see [coding-standards.md](../coding-st
 the existing PascalCase stubs (`Bubble.py`, `Server.py`, …) to `snake_case` as they're replaced. Add
 missing `__init__.py` and a top-level entry point so imports resolve (run from repo root).
 
-- **New** `main.py` — role/address arg parsing; `make_pairing_code()` (host) or `getpass` (joiner);
+- **New** `main.py` - role/address arg parsing; `make_pairing_code()` (host) or `getpass` (joiner);
   print code for host; wire `Peer` + `SecureChannel` + `Bubble`; `try/finally` → guaranteed `pop()`.
-- **New** `security/secure_channel.py` — `SecureChannel` class + the handshake above (replaces the
+- **New** `security/secure_channel.py` - `SecureChannel` class + the handshake above (replaces the
   RSA-oriented `security/Security.py`, which is deleted).
-- **New** `security/pairing.py` — `make_pairing_code()` (high-entropy words via `secrets`).
-- **✅ Done** `networking/framing.py` — `send_framed()` / `recv_framed()` (4-byte big-endian length,
+- **New** `security/pairing.py` - `make_pairing_code()` (high-entropy words via `secrets`).
+- **✅ Done** `networking/framing.py` - `send_framed()` / `recv_framed()` (4-byte big-endian length,
   `MAX_FRAME` guard, exact-read loop via `_recv_exactly`).
-- **✅ Done (transport)** `networking/peer.py` — `Listener` (bind / `address` / `accept()` → `Peer`)
+- **✅ Done (transport)** `networking/peer.py` - `Listener` (bind / `address` / `accept()` → `Peer`)
   plus `Peer` (`join()`, `send_bytes()`, `recv_bytes()`, `close()`). Bind is split into `Listener`
   (separate from the blocking `accept`) for testability. The `Peer.host()` convenience and the
   higher-level session API (`run_session()`, `_rx_loop()`, `send(text)`, `ConnState`) arrive in later
   phases once `SecureChannel`/`Bubble`/`main.py` exist. **Deleted** `networking/Server.py`,
   `networking/Client.py`, `networking/ClientHandler.py`.
-- **Rewrite** `dom/message.py` (from `dom/Message.py`) — immutable value object;
+- **Rewrite** `dom/message.py` (from `dom/Message.py`) - immutable value object;
   `to_bytes()`/`from_bytes()` canonical serialization (JSON→utf8); drop the fragile `" % "` `__str__`
   wire format (keep a display `__str__`).
-- **Rewrite** `dom/user.py` (from `dom/User.py`) — `display_name` + `user_id: UUID` only;
+- **Rewrite** `dom/user.py` (from `dom/User.py`) - `display_name` + `user_id: UUID` only;
   **remove RSA key fields**.
-- **Implement** `dom/bubble.py` (from `dom/Bubble.py`) — instance fields (not class-level);
+- **Implement** `dom/bubble.py` (from `dom/Bubble.py`) - instance fields (not class-level);
   `messages: list`, `channel`, `state`; `add()`, `history()`, `pop()` (the wipe).
 - **Add** `__init__.py` to `dom/`, `networking/`, `security/`, `tests/`.
-- **Edit** `requirements.txt` — replace `cryptography` with `PyNaCl>=1.6.2`.
-- **Tests** — new `tests/*_test.py` files (matches the `.vscode/settings.json` unittest pattern);
+- **Edit** `requirements.txt` - replace `cryptography` with `PyNaCl>=1.6.2`.
+- **Tests** - new `tests/*_test.py` files (matches the `.vscode/settings.json` unittest pattern);
   delete the broken `tests/ServerTests.py`.
 
 ## Pseudocode by module
@@ -168,7 +168,7 @@ SecureChannel(send_box, recv_box)
 send_framed(sock, payload)  -> sock.sendall(struct.pack(">I", len(payload)) + payload)
 recv_framed(sock) -> bytes  -> read 4-byte len (<= MAX_FRAME), then recv exactly len bytes
 
-# networking/peer.py  — transport (implemented)
+# networking/peer.py  - transport (implemented)
 Listener(address)              # bind + listen(1)
   address -> (host, port)      # property; resolves an OS-assigned port when 0 is passed
   accept() -> Peer             # block for one connection, wrap it
@@ -179,7 +179,7 @@ Peer(sock)
   recv_bytes() -> bytes        # recv_framed(sock)
   close()
 
-# networking/peer.py  — session layer (later phases, once channel/bubble exist)
+# networking/peer.py  - session layer (later phases, once channel/bubble exist)
 ConnState = enum(DISCONNECTED, HANDSHAKING, SECURE, CLOSED)
   run_session():               # spawn _rx_loop thread; run tx loop over input()
   _rx_loop():  while not stop.is_set(): f=recv_bytes(); pt=channel.decrypt(f)
@@ -203,27 +203,27 @@ finally:
 
 ## In-memory / ephemerality guarantees
 
-- **No disk writes anywhere** — no logs, no history files, no config persistence. Messages live
+- **No disk writes anywhere** - no logs, no history files, no config persistence. Messages live
   only in `Bubble.messages` (RAM).
-- **Best-effort secret wipe** — hold key material in `bytearray`, overwrite with zeros and `del`
+- **Best-effort secret wipe** - hold key material in `bytearray`, overwrite with zeros and `del`
   on teardown; `SecureChannel.wipe()` drops the boxes.
-- **No echo / no shell history** — pairing code is generated in-process or read via `getpass`;
+- **No echo / no shell history** - pairing code is generated in-process or read via `getpass`;
   never passed on argv.
-- **Guaranteed teardown** — `try/finally` in `main.py` ensures `pop()` runs on `/quit`, `Ctrl-C`,
+- **Guaranteed teardown** - `try/finally` in `main.py` ensures `pop()` runs on `/quit`, `Ctrl-C`,
   and errors alike.
 
 ## Build phasing (TDD-friendly, each phase testable in isolation)
 
-1. **Transport** — `framing` + `Peer.host/join` + threaded echo over loopback (plaintext).
-2. **Handshake** — `SecureChannel.establish` + key confirmation; test matching vs. mismatched code.
-3. **Message crypto** — `SecretBox` directional boxes end-to-end; `Message` serialization round-trip.
-4. **Session + ephemerality** — the chat session loop (receiver thread + stdin sender) wired through
+1. **Transport** - `framing` + `Peer.host/join` + threaded echo over loopback (plaintext).
+2. **Handshake** - `SecureChannel.establish` + key confirmation; test matching vs. mismatched code.
+3. **Message crypto** - `SecretBox` directional boxes end-to-end; `Message` serialization round-trip.
+4. **Session + ephemerality** - the chat session loop (receiver thread + stdin sender) wired through
    `SecureChannel` + `Bubble`; `Bubble.pop()` wipe, `getpass`, `try/finally`, no-disk audit. Includes
    security-review follow-ups 1 and 2 below.
-5. **Polish** — `/quit` command, clean shutdown, error messages, fail-closed on decrypt errors,
+5. **Polish** - `/quit` command, clean shutdown, error messages, fail-closed on decrypt errors,
    `TCP_NODELAY` on the connected sockets, and follow-up 3 (code-entropy guard).
 
-### Security-review follow-ups (Phase 2/3 review — all non-blocking)
+### Security-review follow-ups (Phase 2/3 review - all non-blocking)
 
 The review confirmed the handshake sound (no HIGH/MEDIUM vulns). Three notes to build in:
 
@@ -234,41 +234,41 @@ The review confirmed the handshake sound (no HIGH/MEDIUM vulns). Three notes to 
 2. **Terminal-output sanitization (Phase 4).** Incoming `message.text` is attacker-influenced; strip
    C0/C1 control characters and ANSI escapes before printing, so a peer can't inject terminal escape
    sequences. (Outside the strict threat model since the peer is trusted, but cheap.)
-3. **Pairing-code entropy guard (Phase 5).** The handshake is *not* a true PAKE — its safety depends
+3. **Pairing-code entropy guard (Phase 5).** The handshake is *not* a true PAKE - its safety depends
    on the code being high-entropy. `make_pairing_code()` already yields 128 bits; add a minimum-length
    check in `establish()` as defense-in-depth so the invariant can't be silently weakened later.
 
 ## Testing & verification
 
 - **Unit (`unittest`, files `tests/*_test.py`)**:
-  - `secure_channel_test.py` — matching codes derive equal keys + confirm; **mismatched codes
+  - `secure_channel_test.py` - matching codes derive equal keys + confirm; **mismatched codes
     raise `HandshakeError`**; tampered ciphertext raises on `decrypt`.
-  - `framing_test.py` — round-trip, partial reads, oversize frame rejected.
-  - `message_test.py` — `to_bytes`/`from_bytes` round-trip incl. unicode and `%`.
-  - `bubble_test.py` — `add`/`history`; `pop()` empties `messages` and wipes the channel.
+  - `framing_test.py` - round-trip, partial reads, oversize frame rejected.
+  - `message_test.py` - `to_bytes`/`from_bytes` round-trip incl. unicode and `%`.
+  - `bubble_test.py` - `add`/`history`; `pop()` empties `messages` and wipes the channel.
   - Run: `python -m unittest discover -s tests -p "*_test.py"`
 - **End-to-end (manual, two terminals)** from repo root:
   - Terminal A: `python main.py host 127.0.0.1:5050` → prints a pairing code.
   - Terminal B: `python main.py join 127.0.0.1:5050` → paste the code → chat both directions.
   - Negative: enter a wrong code in B → both sides must abort before any message (fail-closed).
   - Ephemerality: exit both → confirm no files created (`git status` clean, no logs).
-- **Security review**: run `/security-review` on the `security/` handshake before trusting it —
+- **Security review**: run `/security-review` on the `security/` handshake before trusting it -
   it is an assembled protocol (standard "mix pre-shared secret into KDF + key confirmation"
   pattern) built from a vetted primitive library, but assembled crypto warrants a review pass.
 
 ## Deviations from the original stub (calling out, per standards)
 
-- **Drop RSA** (`keygen/encrypt/decrypt/sign/validate`, `User` keypair) — redundant with a shared
+- **Drop RSA** (`keygen/encrypt/decrypt/sign/validate`, `User` keypair) - redundant with a shared
   SecretBox key between exactly two peers. Flag if signatures/non-repudiation are actually wanted.
-- **Collapse `Server`/`Client`/`ClientHandler` into `Peer`** — P2P has no relay.
-- **Replace `Message` `" % "` serialization** — fragile if text contains `%`.
-- **No-I/O constructors** — construct then `.start()`; fixes the current test-hostile pattern.
-- **Naming normalized to PEP 8** — module files to `snake_case` (`Bubble.py` → `bubble.py`),
+- **Collapse `Server`/`Client`/`ClientHandler` into `Peer`** - P2P has no relay.
+- **Replace `Message` `" % "` serialization** - fragile if text contains `%`.
+- **No-I/O constructors** - construct then `.start()`; fixes the current test-hostile pattern.
+- **Naming normalized to PEP 8** - module files to `snake_case` (`Bubble.py` → `bubble.py`),
   functions/methods to `snake_case` (original stubs mixed `sendMessage`/`removeSelf` with lowercase).
 
 ## Known limitations (honest)
 
 - Python cannot guarantee true zeroization (immutable `bytes`/`str`, GC copies); wipe is best-effort.
-- Per-**session** forward secrecy only — no per-message Double-Ratchet (out of scope / YAGNI).
+- Per-**session** forward secrecy only - no per-message Double-Ratchet (out of scope / YAGNI).
 - The out-of-band code channel is trusted (users read it to each other); the app can't verify that.
 - No DoS/abuse hardening beyond a max-frame guard (single known peer, in-terminal).

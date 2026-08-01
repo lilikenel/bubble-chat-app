@@ -25,11 +25,11 @@ class MessageTest(unittest.TestCase):
 
     def test_round_trip_preserves_unicode_and_percent(self) -> None:
         # The old "%"-delimited format broke on these; JSON must not.
-        message = self._sample(text="50% off café — 🎉 % %")
+        message = self._sample(text="50% off café - 🎉 % %")
 
         restored = Message.from_bytes(message.to_bytes())
 
-        self.assertEqual(restored.text, "50% off café — 🎉 % %")
+        self.assertEqual(restored.text, "50% off café - 🎉 % %")
 
     def test_str_is_human_readable(self) -> None:
         message = self._sample(text="hi")

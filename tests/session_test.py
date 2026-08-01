@@ -118,5 +118,53 @@ class ChatSessionTest(unittest.TestCase):
         self.assertEqual([m.text for m in ctx.host_bubble.history()], ["real"])
 
 
+class _RecordingRenderer:
+    def __init__(self) -> None:
+        self.messages: list[tuple[str, bool]] = []
+        self.notices: list[str] = []
+
+    def show_message(self, message: Message, is_local: bool) -> None:
+        self.messages.append((message.text, is_local))
+
+    def notice(self, text: str) -> None:
+        self.notices.append(text)
+
+
+class RendererSeamTest(unittest.TestCase):
+    def _pair_with_renderers(self) -> SimpleNamespace:
+        host_sock, joiner_sock = socket.socketpair()
+        self.addCleanup(host_sock.close)
+        self.addCleanup(joiner_sock.close)
+        h2j, j2h = random_bytes(32), random_bytes(32)
+        host_render, joiner_render = _RecordingRenderer(), _RecordingRenderer()
+        host = ChatSession(
+            Peer(host_sock), SecureChannel(h2j, j2h), Bubble(User("Host")),
+            renderer=host_render,
+        )
+        joiner = ChatSession(
+            Peer(joiner_sock), SecureChannel(j2h, h2j), Bubble(User("Joiner")),
+            renderer=joiner_render,
+        )
+        return SimpleNamespace(
+            host=host, joiner=joiner,
+            host_render=host_render, joiner_render=joiner_render,
+        )
+
+    def test_sender_sees_own_message_as_local(self) -> None:
+        ctx = self._pair_with_renderers()
+
+        ctx.host.send_text("mine")
+
+        self.assertIn(("mine", True), ctx.host_render.messages)
+
+    def test_receiver_sees_peer_message_as_remote(self) -> None:
+        ctx = self._pair_with_renderers()
+
+        ctx.host.send_text("yours")
+        ctx.joiner.receive_message()
+
+        self.assertIn(("yours", False), ctx.joiner_render.messages)
+
+
 if __name__ == "__main__":
     unittest.main()

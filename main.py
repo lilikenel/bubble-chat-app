@@ -1,14 +1,16 @@
 """Entry point: run a Bubble chat as host or joiner.
 
-Usage:
-    python main.py host 127.0.0.1:5050   # generates a pairing code, waits for a peer
-    python main.py join 127.0.0.1:5050   # prompts for the pairing code, connects
+Run with no arguments for the interactive menu, or use the shortcut form:
+    python main.py host 127.0.0.1:5050   # generates a pairing code, waits
+    python main.py join 127.0.0.1:5050   # prompts for the pairing code
 """
 
 from __future__ import annotations
 
 import sys
-from getpass import getpass
+from dataclasses import dataclass
+
+from rich.console import Console
 
 from dom.bubble import Bubble
 from dom.user import User
@@ -17,11 +19,25 @@ from networking.peer import Listener, Peer
 from security.pairing import make_pairing_code
 from security.secure_channel import HOST, JOINER, HandshakeError, SecureChannel
 from session import ChatSession
+from ui import prompts
+from ui.banner import show_splash
+from ui.chat_view import RichChatRenderer
+from ui.waiting import WaitingScreen
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
+__author__ = "Leelee"
 
 # Give up hosting after this long with no peer, rather than waiting forever.
 WAIT_FOR_PEER_SECONDS = 120
+
+
+@dataclass(frozen=True)
+class SessionConfig:
+    """Everything needed to start a session except the pairing code."""
+
+    mode: str
+    address: tuple[str, int]
+    display_name: str
 
 
 def parse_args(argv: list[str]) -> tuple[str, tuple[str, int]]:
@@ -34,31 +50,66 @@ def parse_args(argv: list[str]) -> tuple[str, tuple[str, int]]:
     return argv[0], (host, int(port))
 
 
-def _connect(mode: str, address: tuple[str, int]) -> tuple[Peer, str, bytes]:
-    """Open the connection and obtain the pairing code (which is never persisted)."""
-    if mode == "host":
+def gather_config(argv: list[str], name: str | None) -> SessionConfig | None:
+    """Build a SessionConfig from args, or interactively. None if cancelled."""
+    if argv:
+        mode, address = parse_args(argv)
+        return SessionConfig(mode, address, name or "anon")
+
+    mode = prompts.main_menu()
+    if mode is None:
+        return None
+    if mode == prompts.HOST:
+        display_name = prompts.ask_name()
+        if display_name is None:
+            return None
+        address = prompts.host_network()
+        if address is None:
+            return None
+        return SessionConfig(mode="host", address=address, display_name=display_name)
+
+    display_name = prompts.ask_name()
+    if display_name is None:
+        return None
+    address = prompts.ask_address()
+    if address is None:
+        return None
+    return SessionConfig(mode="join", address=address, display_name=display_name)
+
+
+def _open_connection(
+    config: SessionConfig, console: Console
+) -> tuple[Peer, str, bytes]:
+    """Open the connection and obtain the pairing code (never persisted)."""
+    if config.mode == "host":
         code = make_pairing_code()
-        print("Share this pairing code with your peer (it is never stored):")
-        print(f"\n    {code}\n")
-        listener = Listener(address)
-        print(f"Waiting for a peer to join on {address[0]}:{address[1]} ...")
+        console.print("\nShare this pairing code [dim](never stored)[/dim]:")
+        console.print(f"\n    [yellow]{code}[/yellow]\n")
+        ip, port = config.address
+        console.print(f"Peers can join at [bold]{ip}:{port}[/bold]\n")
+        listener = Listener(config.address)
         try:
-            peer = listener.accept(timeout=WAIT_FOR_PEER_SECONDS)
+            with WaitingScreen(console) as tick:
+                peer = listener.accept(timeout=WAIT_FOR_PEER_SECONDS, on_wait=tick)
         finally:
             listener.close()
         return peer, HOST, code.encode("utf-8")
-    code = getpass("Enter the pairing code: ").strip()
-    return Peer.join(address), JOINER, code.encode("utf-8")
+
+    code = prompts.ask_code()
+    if code is None:
+        raise KeyboardInterrupt
+    return Peer.join(config.address), JOINER, code.strip().encode("utf-8")
 
 
 def main(argv: list[str]) -> None:
-    mode, address = parse_args(argv)
-    print(f"Bubble v{__version__} — the chat app that forgets\n")
+    console = Console()
+    show_splash(console, __version__, __author__)
     try:
-        name = input("Display name: ").strip() or "anon"
-        peer, role, code = _connect(mode, address)
+        config = gather_config(argv, name=None)
+        if config is None:
+            raise SystemExit("\nCancelled.")
+        peer, role, code = _open_connection(config, console)
     except (KeyboardInterrupt, EOFError):
-        # Ctrl-C / EOF before we're connected is a normal cancel, not a crash.
         raise SystemExit("\nCancelled.")
     except TimeoutError:
         # OSError subclass, so this must precede the generic handler below.
@@ -66,17 +117,20 @@ def main(argv: list[str]) -> None:
     except OSError as error:
         raise SystemExit(f"could not connect: {error}")
 
-    bubble = Bubble(User(name))
+    bubble = Bubble(User(config.display_name))
     session: ChatSession | None = None
     try:
         channel = SecureChannel.establish(peer, role, code)
-        session = ChatSession(peer, channel, bubble)
-        print("\nSecure channel established. Type messages; /quit to leave.\n")
+        session = ChatSession(peer, channel, bubble, renderer=RichChatRenderer(console))
+        console.print("\n[green]✓ secure channel established[/green]")
+        console.print("[dim]/quit to leave[/dim]\n")
         session.run()
     except HandshakeError:
-        print("\nHandshake failed — wrong pairing code or tampering. Aborting.")
+        console.print(
+            "\n[red]Handshake failed - wrong code or tampering. Aborting.[/red]"
+        )
     except (PeerDisconnected, FramingError, OSError) as error:
-        print(f"\nConnection error: {error}")
+        console.print(f"\n[red]Connection error: {error}[/red]")
     finally:
         if session is not None:
             session.close()

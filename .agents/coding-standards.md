@@ -33,7 +33,7 @@ PEP 8. Enforce it with tooling rather than by hand (see [Tooling](#tooling)).
 
 ## 2. Type annotations
 
-- **Every** function/method signature is fully annotated — parameters and return type.
+- **Every** function/method signature is fully annotated - parameters and return type.
 - Annotate class attributes and non-obvious locals.
 - Use modern typing: built-in generics (`list[str]`, `dict[str, int]`), `X | None` over
   `Optional[X]`. Add `from __future__ import annotations` at the top of each module.
@@ -51,7 +51,7 @@ def from_bytes(cls, raw: bytes) -> "Message": ...
 - Module, public class, and public function/method get a triple-quoted docstring stating **purpose**.
 - One-line docstrings fit on one line with the quotes; multi-line docstrings put the summary on the
   first line, a blank line, then details.
-- Comments explain **why**, not **what** — the code already says what it does.
+- Comments explain **why**, not **what** - the code already says what it does.
 - Delete dead code and commented-out blocks; git is the history.
 
 ```python
@@ -69,12 +69,12 @@ counter = 0
 - Max line length **88** (Ruff/Black default; PEP 8 permits up to 99 by team agreement).
 - One statement per line; one import per line.
 - Two blank lines around top-level definitions, one between methods.
-- Run the formatter before committing (see [Tooling](#tooling)) — no hand-formatting debates.
+- Run the formatter before committing (see [Tooling](#tooling)) - no hand-formatting debates.
 
 ## 5. Imports
 
 - **Absolute imports only** (`from dom.message import Message`). No implicit relative imports.
-- **Never** use wildcard imports (`from x import *`) — they hide names and shadow builtins.
+- **Never** use wildcard imports (`from x import *`) - they hide names and shadow builtins.
 - Group in PEP 8 order, separated by a blank line: (1) `__future__`, (2) standard library,
   (3) third-party, (4) local/first-party. Sort within groups (let `ruff`/`isort` do it).
 - Every package directory has an `__init__.py`.
@@ -85,7 +85,7 @@ counter = 0
   swallows and continues.
 - Raise domain-specific errors with actionable messages (`HandshakeError("key confirmation failed")`).
 - Let unexpected errors propagate rather than hiding them.
-- **Fail closed** on any security-relevant failure — see §7.
+- **Fail closed** on any security-relevant failure - see §7.
 
 ```python
 try:
@@ -99,10 +99,10 @@ except CryptoError:
 
 This is a security-first app; these are non-negotiable.
 
-- **No hardcoded secrets** — no keys, codes, or tokens in source or version control.
+- **No hardcoded secrets** - no keys, codes, or tokens in source or version control.
 - **Never log or print secrets or plaintext key material.** No message contents in logs either.
 - **Validate all network input** (length, type, bounds) *before* acting on it; enforce `MAX_FRAME`.
-- **Fail closed:** any crypto/handshake/decrypt failure tears the connection down — no plaintext
+- **Fail closed:** any crypto/handshake/decrypt failure tears the connection down - no plaintext
   fallback, no silent retry.
 - **In-memory only:** never persist messages, keys, or the pairing code to disk. Hold secrets in
   `bytearray` and overwrite them on teardown (best-effort; documented limitation).
@@ -112,10 +112,10 @@ This is a security-first app; these are non-negotiable.
 
 - One primary class per module; keep files focused and small enough to hold in your head.
 - Functions do one thing; extract helpers rather than nesting deeply.
-- Constructors don't do I/O — construct, then call an explicit `start()`/`connect()` (keeps code testable).
+- Constructors don't do I/O - construct, then call an explicit `start()`/`connect()` (keeps code testable).
 - Prefer immutable value objects for data (e.g., `Message`); don't mutate shared state across threads
   without a guard.
-- Isolate crypto behind one interface (`SecureChannel`) — the rest of the code never touches raw keys.
+- Isolate crypto behind one interface (`SecureChannel`) - the rest of the code never touches raw keys.
 
 ## 9. Testing
 

@@ -2,13 +2,14 @@
 
 One side opens a :class:`Listener` and accepts a single connection; the other
 :meth:`Peer.join` connects to it. After that the two :class:`Peer` objects are
-symmetric — either may send or receive length-prefixed frames.
+symmetric - either may send or receive length-prefixed frames.
 """
 
 from __future__ import annotations
 
 import socket
 import time
+from collections.abc import Callable
 
 from networking.framing import recv_framed, send_framed
 
@@ -34,22 +35,34 @@ class Listener:
         """The bound address (resolves an OS-assigned port when 0 was given)."""
         return self._sock.getsockname()
 
-    def accept(self, timeout: float | None = None) -> Peer:
+    def accept(
+        self,
+        timeout: float | None = None,
+        on_wait: Callable[[float], None] | None = None,
+    ) -> Peer:
         """Block until one peer connects and wrap it in a :class:`Peer`.
 
-        If ``timeout`` seconds elapse with no peer (see ``_ACCEPT_POLL_SECONDS``),
-        raises :class:`TimeoutError` so the caller isn't stuck waiting forever.
+        Polls with a short timeout so a Ctrl-C is delivered promptly (see
+        ``_ACCEPT_POLL_SECONDS``). If ``timeout`` seconds elapse with no peer,
+        raises :class:`TimeoutError`. ``on_wait`` is called once per poll with
+        the seconds remaining (``inf`` when no timeout), to drive a countdown.
         """
         deadline = None if timeout is None else time.monotonic() + timeout
         self._sock.settimeout(self._ACCEPT_POLL_SECONDS)
         while True:
-            if deadline is not None and time.monotonic() >= deadline:
-                raise TimeoutError(f"no peer connected within {timeout:.0f}s")
+            if deadline is None:
+                remaining = float("inf")
+            else:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"no peer connected within {timeout:.0f}s")
+            if on_wait is not None:
+                on_wait(remaining)
             try:
                 conn, _ = self._sock.accept()
             except TimeoutError:
-                continue
-            conn.settimeout(None)
+                continue  # no peer yet - loop so a pending SIGINT can fire
+            conn.settimeout(None)  # hand back a plain blocking peer socket
             return Peer(conn)
 
     def close(self) -> None:

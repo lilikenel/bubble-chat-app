@@ -13,6 +13,7 @@ import re
 import struct
 import threading
 from datetime import datetime, timezone
+from typing import Protocol
 
 from nacl.exceptions import CryptoError
 
@@ -33,14 +34,39 @@ def sanitize_for_terminal(text: str) -> str:
     return _CONTROL_CHARS.sub("", text)
 
 
+class ChatRenderer(Protocol):
+    """How a session surfaces messages and notices to the user."""
+
+    def show_message(self, message: Message, is_local: bool) -> None: ...
+
+    def notice(self, text: str) -> None: ...
+
+
+class _NullRenderer:
+    """A renderer that discards everything - the default for tests/headless use."""
+
+    def show_message(self, message: Message, is_local: bool) -> None:
+        pass
+
+    def notice(self, text: str) -> None:
+        pass
+
+
 class ChatSession:
     """Drives one secure conversation until /quit or the peer disconnects."""
 
-    def __init__(self, peer: Peer, channel: SecureChannel, bubble: Bubble) -> None:
+    def __init__(
+        self,
+        peer: Peer,
+        channel: SecureChannel,
+        bubble: Bubble,
+        renderer: ChatRenderer | None = None,
+    ) -> None:
         self._peer = peer
         self._channel = channel
         self._bubble = bubble
         self._bubble.channel = channel  # so pop() wipes the same channel
+        self._renderer: ChatRenderer = renderer or _NullRenderer()
         self._send_sequence = 0
         self._last_received_sequence = -1
         self._stop = threading.Event()
@@ -58,6 +84,7 @@ class ChatSession:
         self._send_sequence += 1
         self._peer.send_bytes(self._channel.encrypt(payload))
         self._bubble.add(message)
+        self._renderer.show_message(message, is_local=True)
         return message
 
     def receive_message(self) -> Message | None:
@@ -71,6 +98,7 @@ class ChatSession:
         self._last_received_sequence = sequence
         message = Message.from_bytes(payload[_SEQUENCE.size :])
         self._bubble.add(message)
+        self._renderer.show_message(message, is_local=False)
         return message
 
     def run(self) -> None:
@@ -98,23 +126,22 @@ class ChatSession:
     def _receive_loop(self) -> None:
         while not self._stop.is_set():
             try:
-                message = self.receive_message()
+                self.receive_message()
             except PeerDisconnected:
-                self._note("peer disconnected — press enter to exit")
+                self._note("peer disconnected - press enter to exit")
                 break
             except (CryptoError, FramingError, ValueError, OSError, RuntimeError):
-                self._note("dropped a tampered message — press enter to exit")
+                self._note("dropped a tampered message - press enter to exit")
                 break  # fail closed
-            if message is not None:
-                # bubble.add here and in send_text() run on different threads;
-                # CPython's GIL makes the underlying list.append atomic.
-                print(sanitize_for_terminal(str(message)))
+            # receive_message() renders and records the message (if it wasn't a
+            # dropped replay); bubble.add there and in send_text() run on
+            # different threads, but CPython's GIL keeps list.append atomic.
         self._stop.set()
 
     def _note(self, text: str) -> None:
         # Stay quiet when we're the ones shutting down.
         if not self._stop.is_set():
-            print(f"\n({text})")
+            self._renderer.notice(text)
 
     def close(self) -> None:
         """Stop the session, close the socket, and wipe all secrets."""
