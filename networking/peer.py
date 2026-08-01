@@ -8,12 +8,15 @@ symmetric — either may send or receive length-prefixed frames.
 from __future__ import annotations
 
 import socket
+import time
 
 from networking.framing import recv_framed, send_framed
 
 
 class Listener:
     """A bound, listening socket that accepts a single incoming peer."""
+
+    _ACCEPT_POLL_SECONDS: float = 0.5
 
     def __init__(self, address: tuple[str, int]) -> None:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -31,10 +34,23 @@ class Listener:
         """The bound address (resolves an OS-assigned port when 0 was given)."""
         return self._sock.getsockname()
 
-    def accept(self) -> Peer:
-        """Block until one peer connects and wrap it in a :class:`Peer`."""
-        conn, _ = self._sock.accept()
-        return Peer(conn)
+    def accept(self, timeout: float | None = None) -> Peer:
+        """Block until one peer connects and wrap it in a :class:`Peer`.
+
+        If ``timeout`` seconds elapse with no peer (see ``_ACCEPT_POLL_SECONDS``),
+        raises :class:`TimeoutError` so the caller isn't stuck waiting forever.
+        """
+        deadline = None if timeout is None else time.monotonic() + timeout
+        self._sock.settimeout(self._ACCEPT_POLL_SECONDS)
+        while True:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise TimeoutError(f"no peer connected within {timeout:.0f}s")
+            try:
+                conn, _ = self._sock.accept()
+            except TimeoutError:
+                continue
+            conn.settimeout(None)
+            return Peer(conn)
 
     def close(self) -> None:
         """Close the listening socket; already-accepted peers are unaffected."""

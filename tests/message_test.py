@@ -32,7 +32,10 @@ class MessageTest(unittest.TestCase):
         self.assertEqual(restored.text, "50% off café — 🎉 % %")
 
     def test_str_is_human_readable(self) -> None:
-        self.assertEqual(str(self._sample(text="hi")), "[14:30] Alice: hi")
+        message = self._sample(text="hi")
+        local_time: str = f"{message.timestamp.astimezone():%H:%M}"
+
+        self.assertEqual(str(message), f"[{local_time}] Alice: hi")
 
     def test_from_bytes_rejects_malformed_data(self) -> None:
         with self.assertRaises(ValueError):

@@ -18,7 +18,10 @@ from security.pairing import make_pairing_code
 from security.secure_channel import HOST, JOINER, HandshakeError, SecureChannel
 from session import ChatSession
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
+
+# Give up hosting after this long with no peer, rather than waiting forever.
+WAIT_FOR_PEER_SECONDS = 120
 
 
 def parse_args(argv: list[str]) -> tuple[str, tuple[str, int]]:
@@ -40,7 +43,7 @@ def _connect(mode: str, address: tuple[str, int]) -> tuple[Peer, str, bytes]:
         listener = Listener(address)
         print(f"Waiting for a peer to join on {address[0]}:{address[1]} ...")
         try:
-            peer = listener.accept()
+            peer = listener.accept(timeout=WAIT_FOR_PEER_SECONDS)
         finally:
             listener.close()
         return peer, HOST, code.encode("utf-8")
@@ -51,9 +54,15 @@ def _connect(mode: str, address: tuple[str, int]) -> tuple[Peer, str, bytes]:
 def main(argv: list[str]) -> None:
     mode, address = parse_args(argv)
     print(f"Bubble v{__version__} — the chat app that forgets\n")
-    name = input("Display name: ").strip() or "anon"
     try:
+        name = input("Display name: ").strip() or "anon"
         peer, role, code = _connect(mode, address)
+    except (KeyboardInterrupt, EOFError):
+        # Ctrl-C / EOF before we're connected is a normal cancel, not a crash.
+        raise SystemExit("\nCancelled.")
+    except TimeoutError:
+        # OSError subclass, so this must precede the generic handler below.
+        raise SystemExit("\nNo peer joined in time. Exiting.")
     except OSError as error:
         raise SystemExit(f"could not connect: {error}")
 

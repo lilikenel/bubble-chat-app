@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import time
 import unittest
 
 from networking.peer import Listener, Peer
@@ -19,6 +20,33 @@ class ListenerTest(unittest.TestCase):
 
         self.assertEqual(host, LOOPBACK)
         self.assertNotEqual(port, 0)
+
+    def test_accept_polls_then_accepts_a_late_peer(self) -> None:
+        # A peer that connects after several poll intervals must still be
+        # accepted; the polling loop must not give up or lose the connection.
+        listener = Listener((LOOPBACK, 0))
+        self.addCleanup(listener.close)
+
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self.addCleanup(executor.shutdown)
+        accept_future = executor.submit(listener.accept)
+
+        time.sleep(Listener._ACCEPT_POLL_SECONDS * 2)  # force at least one poll
+        client = Peer.join(listener.address)
+        self.addCleanup(client.close)
+        server = accept_future.result(timeout=5)
+        self.addCleanup(server.close)
+
+        client.send_bytes(b"late")
+        self.assertEqual(server.recv_bytes(), b"late")
+
+    def test_accept_times_out_when_no_peer_connects(self) -> None:
+        # With a deadline and no peer, accept() must give up instead of blocking.
+        listener = Listener((LOOPBACK, 0))
+        self.addCleanup(listener.close)
+
+        with self.assertRaises(TimeoutError):
+            listener.accept(timeout=Listener._ACCEPT_POLL_SECONDS)
 
 
 class PeerTransportTest(unittest.TestCase):

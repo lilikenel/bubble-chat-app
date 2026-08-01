@@ -6,7 +6,7 @@ message and key vanishes. Nothing is ever written to disk.
 
 This is an app I wrote to teach myself more about Diffie-Hellman key exchange. Don't use it to replace Signal.
 
-`v1.0.0` · Python 3.10+ · terminal · GPL-3.0
+`v1.0.1` · Python 3.10+ · terminal · GPL-3.0
 
 ---
 
@@ -140,7 +140,8 @@ and the design in [`.agents/plans/secure-chat-design.md`](.agents/plans/secure-c
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). **v1.0.0** is the first official release.
+See [CHANGELOG.md](CHANGELOG.md). **v1.0.1** is the latest release; **v1.0.0**
+was the first official release.
 
 ## License
 

@@ -47,4 +47,7 @@ class Message:
             raise ValueError(f"malformed message: {error}") from error
 
     def __str__(self) -> str:
-        return f"[{self.timestamp:%H:%M}] {self.sender_name}: {self.text}"
+        # Timestamps travel on the wire as UTC; render each in the reader's own
+        # local time so both peers see their wall clock, not the sender's.
+        local_time: datetime = self.timestamp.astimezone()
+        return f"[{local_time:%H:%M}] {self.sender_name}: {self.text}"
