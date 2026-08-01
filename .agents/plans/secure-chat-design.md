@@ -217,9 +217,26 @@ finally:
 1. **Transport** — `framing` + `Peer.host/join` + threaded echo over loopback (plaintext).
 2. **Handshake** — `SecureChannel.establish` + key confirmation; test matching vs. mismatched code.
 3. **Message crypto** — `SecretBox` directional boxes end-to-end; `Message` serialization round-trip.
-4. **Ephemerality/hardening** — `Bubble.pop()` wipe, `getpass`, `try/finally`, no-disk audit.
+4. **Session + ephemerality** — the chat session loop (receiver thread + stdin sender) wired through
+   `SecureChannel` + `Bubble`; `Bubble.pop()` wipe, `getpass`, `try/finally`, no-disk audit. Includes
+   security-review follow-ups 1 and 2 below.
 5. **Polish** — `/quit` command, clean shutdown, error messages, fail-closed on decrypt errors,
-   `TCP_NODELAY` on the connected sockets (lower per-message latency for interactive chat).
+   `TCP_NODELAY` on the connected sockets, and follow-up 3 (code-entropy guard).
+
+### Security-review follow-ups (Phase 2/3 review — all non-blocking)
+
+The review confirmed the handshake sound (no HIGH/MEDIUM vulns). Three notes to build in:
+
+1. **Replay/reorder protection (Phase 4).** `SecretBox` uses random nonces and keeps no sequence
+   state, so a captured frame re-decrypts as authentic. The session layer prepends a monotonic
+   per-direction sequence number *inside* the encrypted payload and drops any frame whose `seq` is
+   not strictly greater than the last accepted for that direction.
+2. **Terminal-output sanitization (Phase 4).** Incoming `message.text` is attacker-influenced; strip
+   C0/C1 control characters and ANSI escapes before printing, so a peer can't inject terminal escape
+   sequences. (Outside the strict threat model since the peer is trusted, but cheap.)
+3. **Pairing-code entropy guard (Phase 5).** The handshake is *not* a true PAKE — its safety depends
+   on the code being high-entropy. `make_pairing_code()` already yields 128 bits; add a minimum-length
+   check in `establish()` as defense-in-depth so the invariant can't be silently weakened later.
 
 ## Testing & verification
 

@@ -7,8 +7,6 @@ handshake; the constructor takes the two directional keys it derives.
 
 from __future__ import annotations
 
-import socket
-
 import nacl.bindings
 from nacl.encoding import RawEncoder
 from nacl.hash import blake2b
@@ -16,7 +14,7 @@ from nacl.public import PrivateKey
 from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
 
-from networking.framing import recv_framed, send_framed
+from networking.peer import Peer
 
 HOST = "HOST"
 JOINER = "JOINER"
@@ -43,9 +41,9 @@ class SecureChannel:
 
     @classmethod
     def establish(
-        cls, connection: socket.socket, role: str, pairing_code: bytes
+        cls, transport: Peer, role: str, pairing_code: bytes
     ) -> "SecureChannel":
-        """Run the pairing-code handshake and return a ready channel.
+        """Run the pairing-code handshake over ``transport`` and return a channel.
 
         A fresh key pair per session provides forward secrecy; the ``pairing_code``
         authenticates the exchange through a key-confirmation step. Raises
@@ -57,8 +55,8 @@ class SecureChannel:
 
         my_private_key = PrivateKey.generate()
         my_public_key = my_private_key.public_key.encode()
-        send_framed(connection, my_public_key)
-        their_public_key = recv_framed(connection)
+        transport.send_bytes(my_public_key)
+        their_public_key = transport.recv_bytes()
         if len(their_public_key) != _PUBLIC_KEY_BYTES:
             raise HandshakeError("peer sent a malformed public key")
 
@@ -93,8 +91,8 @@ class SecureChannel:
         )
         their_role = JOINER if role == HOST else HOST
         expected_tag = _confirmation_tag(confirmation_key, their_role)
-        send_framed(connection, _confirmation_tag(confirmation_key, role))
-        their_tag = recv_framed(connection)
+        transport.send_bytes(_confirmation_tag(confirmation_key, role))
+        their_tag = transport.recv_bytes()
         if not nacl.bindings.sodium_memcmp(their_tag, expected_tag):
             raise HandshakeError("key confirmation failed: wrong code or tampering")
 

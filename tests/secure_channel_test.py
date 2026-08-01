@@ -9,7 +9,7 @@ import unittest
 from nacl.exceptions import CryptoError
 from nacl.utils import random as random_bytes
 
-from networking.framing import recv_framed, send_framed
+from networking.peer import Peer
 from security.secure_channel import HOST, JOINER, HandshakeError, SecureChannel
 
 
@@ -54,12 +54,13 @@ class HandshakeTest(unittest.TestCase):
         host_sock, joiner_sock = socket.socketpair()
         self.addCleanup(host_sock.close)
         self.addCleanup(joiner_sock.close)
+        host_peer, joiner_peer = Peer(host_sock), Peer(joiner_sock)
 
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self.addCleanup(executor.shutdown)
         establish = SecureChannel.establish
-        host_future = executor.submit(establish, host_sock, HOST, host_code)
-        joiner_future = executor.submit(establish, joiner_sock, JOINER, joiner_code)
+        host_future = executor.submit(establish, host_peer, HOST, host_code)
+        joiner_future = executor.submit(establish, joiner_peer, JOINER, joiner_code)
         return host_future, joiner_future
 
     def test_matching_codes_yield_interoperable_channels(self) -> None:
@@ -82,12 +83,13 @@ class HandshakeTest(unittest.TestCase):
         host_sock, joiner_sock = socket.socketpair()
         self.addCleanup(host_sock.close)
         self.addCleanup(joiner_sock.close)
+        host_peer, joiner_peer = Peer(host_sock), Peer(joiner_sock)
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.addCleanup(executor.shutdown)
 
-        host_future = executor.submit(SecureChannel.establish, host_sock, HOST, b"code")
-        recv_framed(joiner_sock)  # consume the host's real public key
-        send_framed(joiner_sock, b"too-short")  # reply with a malformed one
+        host_future = executor.submit(SecureChannel.establish, host_peer, HOST, b"code")
+        joiner_peer.recv_bytes()  # consume the host's real public key
+        joiner_peer.send_bytes(b"too-short")  # reply with a malformed one
 
         with self.assertRaises(HandshakeError):
             host_future.result(timeout=15)
